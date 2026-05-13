@@ -491,6 +491,19 @@ def test_renderer_script_includes_user_script_manager_ui_contract():
     assert ".codex-plus-trigger:hover" not in text
 
 
+def test_renderer_script_has_sponsor_tab():
+    text = Path("codex_session_delete/inject/renderer-inject.js").read_text(encoding="utf-8")
+
+    assert "data-codex-plus-tab=\"sponsor\"" in text
+    assert "赞赏" in text
+    assert "请我喝杯咖啡" in text
+    assert "data-codex-plus-panel=\"sponsor\"" in text
+    assert "docs/images/sponsor-alipay.jpg" in text
+    assert "docs/images/sponsor-wechat.jpg" in text
+    assert "codex-plus-sponsor-grid" in text
+    assert "codex-plus-sponsor-qr" in text
+
+
 def test_renderer_script_has_backend_provider_sync_toggle():
     text = Path("codex_session_delete/inject/renderer-inject.js").read_text(encoding="utf-8")
 
