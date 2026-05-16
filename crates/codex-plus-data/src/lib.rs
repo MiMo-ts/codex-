@@ -1,11 +1,9 @@
-pub fn crate_ready() -> bool {
-    true
-}
+pub mod backup;
+pub mod markdown;
+pub mod provider_sync;
+pub mod storage;
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn crate_is_ready() {
-        assert!(super::crate_ready());
-    }
-}
+pub use backup::BackupStore;
+pub use markdown::MarkdownExportService;
+pub use provider_sync::{ProviderSyncResult, ProviderSyncStatus, run_provider_sync};
+pub use storage::SQLiteStorageAdapter;
