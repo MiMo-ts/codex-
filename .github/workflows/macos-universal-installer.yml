@@ -117,16 +117,6 @@ jobs:
           [ -n "$DMG" ] && echo "DMG=$DMG ($(stat -f %z "$DMG") bytes)"
           [ -n "$PKG" ] && echo "PKG=$PKG ($(stat -f %z "$PKG") bytes)"
           [ -n "$DMG" ] && [ -n "$PKG" ] || { echo "ERROR: missing dmg or pkg"; exit 1; }
-        id: pkg
-
-      - name: List installer artifact
-        run: |
-          ls -lh dist/macos/*.pkg
-          PKG="$(ls dist/macos/CodexPlusPlus-*-macos-universal.pkg | head -1)"
-          echo "PKG=$PKG"
-          echo "PKG_SIZE=$(stat -f %z "$PKG")"
-          echo "PKG_SHA=$(shasum -a 256 "$PKG" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
-        id: pkg
 
       - name: Inspect installer payload (no install)
         run: |
