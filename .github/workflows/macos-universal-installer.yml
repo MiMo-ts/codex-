@@ -168,8 +168,12 @@ jobs:
             codesign -dv "/Applications/$app" 2>&1 | head -4
           done
 
-          echo "==> uninstall: removing both .app bundles"
-          rm -rf "/Applications/Codex++.app" "/Applications/Codex++ 管理工具.app"
+          echo "==> uninstall: removing both .app bundles (sudo needed, root:wheel)"
+          sudo rm -rf "/Applications/Codex++.app" "/Applications/Codex++ 管理工具.app"
+
+          # Forget package receipt so subsequent runs don't see a stale install
+          sudo pkgutil --forget "com.bigpizzav3.codexplusplus" 2>/dev/null || true
+
           echo "==> post-uninstall: cleanup verified"
           [ ! -d "/Applications/Codex++.app" ]          || { echo "uninstall leftover"; exit 1; }
           [ ! -d "/Applications/Codex++ 管理工具.app" ] || { echo "uninstall leftover"; exit 1; }
