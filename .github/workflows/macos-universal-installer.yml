@@ -95,10 +95,22 @@ jobs:
           set -euo pipefail
           PKG="$(ls dist/macos/CodexPlusPlus-*-macos-universal.pkg | head -1)"
           echo "Verifying payload of: $PKG"
-          pkgutil --payload-files "$PKG" | grep -E "\.app" | sort -u
-          echo "---"
-          pkgutil --payload-files "$PKG" | grep -q "^\./Applications/Codex\+\+\.app$"          || { echo "MISSING: Codex++.app"; exit 1; }
-          pkgutil --payload-files "$PKG" | grep -q "^\./Applications/Codex\+\+ 管理工具\.app$"  || { echo "MISSING: 管理工具.app"; exit 1; }
+
+          # Capture payload once
+          PAYLOAD="$(pkgutil --payload-files "$PKG")"
+          echo "$PAYLOAD" | head -40
+
+          # Bulletproof fixed-string match — no regex escaping needed
+          echo "$PAYLOAD" | grep -Fxq './Applications/Codex++.app' \
+            || { echo "MISSING: Codex++.app"; exit 1; }
+          echo "$PAYLOAD" | grep -Fxq './Applications/Codex++ 管理工具.app' \
+            || { echo "MISSING: 管理工具.app"; exit 1; }
+
+          # Also count .app directories to be safe
+          APP_COUNT="$(printf '%s\n' "$PAYLOAD" | awk -F/ '/\.app$/ {n++} END {print n+0}')"
+          echo "  - distinct .app directory lines: $APP_COUNT"
+          [ "$APP_COUNT" -ge 2 ] || { echo "expected >=2 .app directory lines, got $APP_COUNT"; exit 1; }
+
           echo "✓ payload contains both .app bundles"
 
       - name: Expand .pkg and verify universal binaries inside
