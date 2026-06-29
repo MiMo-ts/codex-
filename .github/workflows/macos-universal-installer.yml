@@ -1,0 +1,171 @@
+name: macOS Universal Installer (.pkg)
+
+# Single .pkg installer that auto-installs BOTH Codex++ and Codex++ 管理工具
+# to /Applications in one shot. Runs natively on Intel (x86_64) and
+# Apple Silicon (arm64) Macs via lipo-built universal binaries.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/codex-plus-manager/**"
+      - "apps/codex-plus-launcher/**"
+      - "apps/codex-plus-mobile-relay/**"
+      - "crates/codex-plus-core/**"
+      - "crates/codex-plus-data/**"
+      - "scripts/installer/macos/**"
+      - ".github/workflows/macos-universal-installer.yml"
+      - "Cargo.toml"
+      - "Cargo.lock"
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  macos-universal-installer:
+    name: Build Universal .pkg installer (x86_64 + arm64, both apps)
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Setup Rust (multi-target)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin,aarch64-apple-darwin
+
+      - name: Sanity check toolchain
+        run: |
+          rustc --version
+          rustup target list --installed
+          xcrun --show-sdk-path
+          clang --target=aarch64-apple-darwin -E -x c - </dev/null > /dev/null \
+            && echo "clang aarch64 OK" \
+            || (echo "clang aarch64 FAIL" && exit 1)
+
+      - name: Install frontend dependencies
+        working-directory: apps/codex-plus-manager
+        run: npm install --package-lock=false
+
+      - name: Build frontend (Vite)
+        working-directory: apps/codex-plus-manager
+        run: npm run vite:build
+
+      - name: Build x86_64 binaries (cross compile on Apple Silicon runner)
+        run: |
+          cargo build --release --target x86_64-apple-darwin \
+            -p codex-plus-launcher -p codex-plus-manager
+
+      - name: Build aarch64 binaries (native)
+        run: |
+          cargo build --release --target aarch64-apple-darwin \
+            -p codex-plus-launcher -p codex-plus-manager
+
+      - name: Confirm architecture presence
+        run: |
+          file target/x86_64-apple-darwin/release/codex-plus-plus
+          file target/aarch64-apple-darwin/release/codex-plus-plus
+          lipo -info target/x86_64-apple-darwin/release/codex-plus-plus
+          lipo -info target/aarch64-apple-darwin/release/codex-plus-plus
+
+      - name: Build universal .pkg installer (auto-installs both apps to /Applications)
+        run: |
+          chmod +x scripts/installer/macos/package-pkg-universal.sh
+          bash scripts/installer/macos/package-pkg-universal.sh
+
+      - name: List installer artifact
+        run: |
+          ls -lh dist/macos/*.pkg
+          PKG="$(ls dist/macos/CodexPlusPlus-*-macos-universal.pkg | head -1)"
+          echo "PKG=$PKG"
+          echo "PKG_SIZE=$(stat -f %z "$PKG")"
+          echo "PKG_SHA=$(shasum -a 256 "$PKG" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+        id: pkg
+
+      - name: Inspect installer payload (no install)
+        run: |
+          set -euo pipefail
+          PKG="$(ls dist/macos/CodexPlusPlus-*-macos-universal.pkg | head -1)"
+          echo "Verifying payload of: $PKG"
+          pkgutil --payload-files "$PKG" | grep -E "\.app" | sort -u
+          echo "---"
+          pkgutil --payload-files "$PKG" | grep -q "^\./Applications/Codex\+\+\.app$"          || { echo "MISSING: Codex++.app"; exit 1; }
+          pkgutil --payload-files "$PKG" | grep -q "^\./Applications/Codex\+\+ 管理工具\.app$"  || { echo "MISSING: 管理工具.app"; exit 1; }
+          echo "✓ payload contains both .app bundles"
+
+      - name: Expand .pkg and verify universal binaries inside
+        run: |
+          set -euo pipefail
+          PKG="$(ls dist/macos/CodexPlusPlus-*-macos-universal.pkg | head -1)"
+          EXPAND="/tmp/codexplus-install-expand"
+          rm -rf "$EXPAND" && mkdir -p "$EXPAND"
+          pkgutil --expand-full "$PKG" "$EXPAND/expanded"
+
+          for app in "Codex++.app" "Codex++ 管理工具.app"; do
+            BIN_NAME="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$EXPAND/expanded/Payload/Applications/$app/Contents/Info.plist")"
+            BIN_PATH="$EXPAND/expanded/Payload/Applications/$app/Contents/MacOS/$BIN_NAME"
+            echo "--- $app"
+            file "$BIN_PATH"
+            lipo -info "$BIN_PATH"
+            /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$EXPAND/expanded/Payload/Applications/$app/Contents/Info.plist"
+            /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$EXPAND/expanded/Payload/Applications/$app/Contents/Info.plist"
+            plutil -lint "$EXPAND/expanded/Payload/Applications/$app/Contents/Info.plist"
+            codesign -dv "$EXPAND/expanded/Payload/Applications/$app" 2>&1 | head -6
+          done
+
+      - name: Live install to /Applications, verify, then uninstall
+        run: |
+          set -euo pipefail
+          PKG="$(ls dist/macos/CodexPlusPlus-*-macos-universal.pkg | head -1)"
+
+          echo "==> pre-install: should NOT exist yet"
+          [ ! -d "/Applications/Codex++.app" ]          || { echo "leftover Codex++.app"; exit 1; }
+          [ ! -d "/Applications/Codex++ 管理工具.app" ] || { echo "leftover 管理工具.app"; exit 1; }
+
+          echo "==> installing $PKG"
+          sudo installer -pkg "$PKG" -target / -verbose
+
+          echo "==> post-install: both apps must be present"
+          for app in "Codex++.app" "Codex++ 管理工具.app"; do
+            test -d "/Applications/$app" || { echo "MISSING /Applications/$app"; exit 1; }
+            BIN_NAME="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "/Applications/$app/Contents/Info.plist")"
+            BIN_PATH="/Applications/$app/Contents/MacOS/$BIN_NAME"
+            file "$BIN_PATH"
+            lipo -info "$BIN_PATH"
+            codesign -dv "/Applications/$app" 2>&1 | head -4
+          done
+
+          echo "==> uninstall: removing both .app bundles"
+          rm -rf "/Applications/Codex++.app" "/Applications/Codex++ 管理工具.app"
+          echo "==> post-uninstall: cleanup verified"
+          [ ! -d "/Applications/Codex++.app" ]          || { echo "uninstall leftover"; exit 1; }
+          [ ! -d "/Applications/Codex++ 管理工具.app" ] || { echo "uninstall leftover"; exit 1; }
+
+      - name: Cleanup expand dir
+        run: rm -rf /tmp/codexplus-install-expand
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: codex-plus-plus-macos-installer
+          path: dist/macos/CodexPlusPlus-*-macos-universal.pkg
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Smoke summary
+        run: |
+          echo "## macOS Universal Installer (.pkg) ready"
+          echo ""
+          echo "- Single .pkg auto-installs both Codex++ and Codex++ 管理工具 to /Applications"
+          echo "- Runs natively on Intel (x86_64) and Apple Silicon (arm64)"
+          echo "- Built via lipo'd universal binaries + pkgbuild"
+          echo ""
+          ls -lh dist/macos/CodexPlusPlus-*-macos-universal.pkg
