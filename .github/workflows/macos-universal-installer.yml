@@ -213,13 +213,25 @@ jobs:
 
             | Asset | Description |
             |---|---|
-            | `CodexPlusPlus-1.2.21-macos-universal.pkg` | One-click universal installer (Intel + Apple Silicon, .pkg auto-installs both Codex++ and Codex++ 管理工具 to /Applications) |
+            | `CodexPlusPlus-1.2.21-macos-universal.pkg` | One-click universal installer (Intel + Apple Silicon, auto-installs both Codex++ and Codex++ 管理工具 to /Applications) |
 
-            ### Install
+            ### Install (one-liner — recommended)
+            ```bash
+            curl -fL https://raw.githubusercontent.com/MiMo-ts/codex-/main/scripts/installer/macos/install.sh | bash
+            ```
+            Downloads + removes quarantine (Gatekeeper unlock) + installs to `/Applications` via `sudo installer`. Will prompt for the admin password once.
+
+            ### Install (manual, GUI)
             1. Download `CodexPlusPlus-1.2.21-macos-universal.pkg` below.
-            2. Double-click → macOS Installer pops up → continue.
-            3. After install, `/Applications/Codex++ 管理工具.app` will appear in Launchpad
-               and `Codex++.app` will be the silent background launcher.
+            2. **If Gatekeeper blocks it** ("from an unidentified developer"), either:
+               - Right-click the `.pkg` in Finder → **Open** → **Open** in the dialog, or
+               - Run `xattr -cr /path/to/CodexPlusPlus-1.2.21-macos-universal.pkg` then double-click
+            3. macOS Installer pops up → continue → enter admin password.
+            4. Done. Both `Codex++` and `Codex++ 管理工具` will be in `/Applications`.
+
+            > The bundle is **ad-hoc signed** (no Apple Developer ID), which is why
+            > browsers add `com.apple.quarantine` and Gatekeeper complains. Removing
+            > the quarantine attribute is the official workaround until notarization is enabled.
 
             ### CLI install (alternative)
             ```bash
