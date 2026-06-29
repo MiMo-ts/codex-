@@ -2375,32 +2375,32 @@ function OverviewScreen({
   const health = healthItems(overview);
   return (
     <>
-      <Panel className="jojocode-overview">
+      <Panel className="kuaifan-overview">
         <CardContent>
-          <div className="jojocode-overview-layout">
-            <div className="jojocode-overview-main">
-              <div className="jojocode-overview-mark">
+          <div className="kuaifan-overview-layout">
+            <div className="kuaifan-overview-main">
+              <div className="kuaifan-overview-mark">
                 <Network className="h-5 w-5" />
               </div>
               <div>
                 <span className="eyebrow">官方中转站</span>
-                <h2>JOJO Code</h2>
+                <h2>快泛API</h2>
                 <p>
                   Codex++ 官方中转站，主打稳定接入和划算价格，支持 GPT-5.5、GPT-5.4、Claude Opus 4.8、Claude Opus 4.7、gpt-image-2 等模型与图像能力。
                 </p>
               </div>
             </div>
-            <div className="jojocode-overview-side">
-              <div className="jojocode-model-tags">
+            <div className="kuaifan-overview-side">
+              <div className="kuaifan-model-tags">
                 <span>GPT-5.5</span>
                 <span>GPT-5.4</span>
                 <span>Opus 4.8</span>
                 <span>Opus 4.7</span>
                 <span>gpt-image-2</span>
               </div>
-              <Button onClick={() => void actions.openExternalUrl("https://jojocode.com/")}>
+              <Button onClick={() => void actions.openExternalUrl("https://kuaifanio.cn")}>
                 <ExternalLink className="h-4 w-4" />
-                打开 JOJO Code
+                打开 快泛API
               </Button>
             </div>
           </div>
