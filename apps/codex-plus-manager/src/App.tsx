@@ -4192,7 +4192,23 @@ function RelayProfileEditor({
                     modelWindows: serializedRows.modelWindows,
                   });
                   if (models?.length) {
-                    addModelWindowRows(models.map((model) => ({ model, window: "" })));
+                    // For the 快泛API preset: replace the model list with
+                    // just the first upstream model (per "配置 key → 一键
+                    // 写入首个模型" workflow). Other cards keep their
+                    // existing append-all behavior.
+                    const isKuaifanPreset =
+                      profile.id === "kuaifan" ||
+                      profile.name === "快泛API" ||
+                      (profile.baseUrl || "")
+                        .replace(/\/+$/, "")
+                        .toLowerCase() === "https://kuaifanio.cn/v1";
+                    if (isKuaifanPreset) {
+                      setModelWindowRows([{ model: models[0], window: "" }]);
+                    } else {
+                      addModelWindowRows(
+                        models.map((model) => ({ model, window: "" })),
+                      );
+                    }
                   }
                 }}
                 size="sm"
@@ -5822,6 +5838,32 @@ function normalizeSettings(settings: BackendSettings): BackendSettings {
             apiKey: settings.relayApiKey || "",
             protocol: "responses" as RelayProtocol,
             relayMode: "official" as RelayMode,
+            officialMixApiKey: false,
+            testModel: "",
+            configContents: "",
+            authContents: "",
+            useCommonConfig: true,
+            contextSelection: defaultContextSelection,
+            contextSelectionInitialized: true,
+            contextWindow: "",
+            autoCompactLimit: "",
+            modelList: "",
+            modelWindows: "",
+            userAgent: "",
+          },
+          // Seed Provider #2 with 快泛API defaults so a fresh install ships with
+          // a pre-configured alternative relay (kuaifanio.cn / pureApi /
+          // chatCompletions). The user only needs to paste their API key and
+          // click "从上游获取" — the first model lands in the model list.
+          {
+            id: "kuaifan",
+            name: "快泛API",
+            model: "",
+            baseUrl: "https://kuaifanio.cn/v1",
+            upstreamBaseUrl: "https://kuaifanio.cn/v1",
+            apiKey: "",
+            protocol: "chatCompletions" as RelayProtocol,
+            relayMode: "pureApi" as RelayMode,
             officialMixApiKey: false,
             testModel: "",
             configContents: "",
