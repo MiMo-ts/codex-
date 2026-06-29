@@ -37,6 +37,14 @@ on:
 permissions:
   contents: write
 
+# Serialize within one ref. A new push (e.g. latest force-pushed tag) cancels
+# any in_progress run on the same ref; main branch vs tag push are distinct
+# groups so both can run if needed. This avoids the 0-second "duplicate step id"
+# phantom failures that come from concurrent runs racing parse-time validation.
+concurrency:
+  group: macos-universal-installer-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   macos-universal-installer:
     name: Build Universal .pkg installer (x86_64 + arm64, both apps)
