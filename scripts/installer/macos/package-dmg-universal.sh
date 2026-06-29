@@ -60,6 +60,8 @@ fi
 
 rm -rf "$OUT_DIR"
 mkdir -p "$OUT_DIR" "$ARCHIVE_DIR"
+# Universal bin staging sits OUTSIDE $ARCHIVE_DIR so it isn't swept into the DMG.
+UNIVERSAL_DIR="${UNIVERSAL_DIR:-$OUT_DIR/.universal-bin}"
 
 # ---------------------------------------------------------------------------
 # Step 1: Generate iconset → icns via sips + iconutil
@@ -199,7 +201,7 @@ verify_app() {
 echo "==> Preparing icon..."
 prepare_icon
 
-UNIVERSAL_DIR="$ARCHIVE_DIR/universal-bin"
+UNIVERSAL_DIR="${UNIVERSAL_DIR:-$OUT_DIR/.universal-bin}"
 mkdir -p "$UNIVERSAL_DIR"
 
 echo "==> lipo-merging launcher..."
