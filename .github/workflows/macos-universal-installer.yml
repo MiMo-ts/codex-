@@ -91,23 +91,32 @@ jobs:
 
       - name: Build universal .dmg (primary, drag-and-drop install — bypasses .pkg Gatekeeper friction)
         run: |
+          # Route to a subdir so the .pkg build's rm -rf doesn't wipe the .dmg out.
+          mkdir -p dist/macos/dmg
           chmod +x scripts/installer/macos/package-dmg-universal.sh
-          bash scripts/installer/macos/package-dmg-universal.sh
+          OUT_DIR=dist/macos/dmg bash scripts/installer/macos/package-dmg-universal.sh
 
       - name: Build universal .pkg installer (alternative, one-click install via sudo installer)
         run: |
+          mkdir -p dist/macos/pkg
           chmod +x scripts/installer/macos/package-pkg-universal.sh
-          bash scripts/installer/macos/package-pkg-universal.sh
+          OUT_DIR=dist/macos/pkg bash scripts/installer/macos/package-pkg-universal.sh
 
-      - name: List installer artifacts
+      - name: Collect artifacts to dist/macos/
         run: |
-          ls -lh dist/macos/*.dmg dist/macos/*.pkg 2>&1
-          PKG="$(ls dist/macos/CodexPlusPlus-*-macos-universal.pkg | head -1)"
-          DMG="$(ls dist/macos/CodexPlusPlus-*-macos-universal.dmg | head -1)"
-          echo "PKG=$PKG"
-          echo "PKG_SIZE=$(stat -f %z "$PKG")"
-          echo "DMG=$DMG"
-          echo "DMG_SIZE=$(stat -f %z "$DMG")"
+          # Each script wiped its own OUT_DIR; pull their outputs up to dist/macos/
+          # so the upload step's globs pick them up together.
+          set -euo pipefail
+          [ -d dist/macos/dmg ] && mv dist/macos/dmg/*.dmg dist/macos/ || echo "no dmg dir"
+          [ -d dist/macos/pkg ] && mv dist/macos/pkg/*.pkg dist/macos/ || echo "no pkg dir"
+          rm -rf dist/macos/dmg dist/macos/pkg
+
+          ls -lh dist/macos/
+          DMG="$(ls dist/macos/CodexPlusPlus-*-macos-universal.dmg | head -1 || true)"
+          PKG="$(ls dist/macos/CodexPlusPlus-*-macos-universal.pkg | head -1 || true)"
+          [ -n "$DMG" ] && echo "DMG=$DMG ($(stat -f %z "$DMG") bytes)"
+          [ -n "$PKG" ] && echo "PKG=$PKG ($(stat -f %z "$PKG") bytes)"
+          [ -n "$DMG" ] && [ -n "$PKG" ] || { echo "ERROR: missing dmg or pkg"; exit 1; }
         id: pkg
 
       - name: List installer artifact
