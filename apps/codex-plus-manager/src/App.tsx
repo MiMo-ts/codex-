@@ -5808,7 +5808,7 @@ function healthItems(overview: OverviewResult | null) {
   ];
 }
 
-function normalizeSettings(settings: BackendSettings): BackendSettings {
+export function normalizeSettings(settings: BackendSettings): BackendSettings {
   const backendAggregates = new Map(
     (settings.aggregateRelayProfiles ?? []).map((aggregate) => [aggregate.id, aggregate] as const),
   );
@@ -5823,61 +5823,67 @@ function normalizeSettings(settings: BackendSettings): BackendSettings {
     relayCommonConfigContents,
     relayContextConfigContents,
   });
-  const profiles =
-    settings.relayProfiles?.length
-      ? settings.relayProfiles.map((profile) =>
-          normalizeRelayProfile(hydrateAggregateRelayProfile(profile, backendAggregates.get(profile.id)), defaultContextSelection),
-        )
-      : [
-          {
-            id: settings.activeRelayId || "default",
-            name: "默认中转",
-            model: "",
-            baseUrl: settings.relayBaseUrl || defaultSettings.relayBaseUrl,
-            upstreamBaseUrl: settings.relayBaseUrl || defaultSettings.relayBaseUrl,
-            apiKey: settings.relayApiKey || "",
-            protocol: "responses" as RelayProtocol,
-            relayMode: "official" as RelayMode,
-            officialMixApiKey: false,
-            testModel: "",
-            configContents: "",
-            authContents: "",
-            useCommonConfig: true,
-            contextSelection: defaultContextSelection,
-            contextSelectionInitialized: true,
-            contextWindow: "",
-            autoCompactLimit: "",
-            modelList: "",
-            modelWindows: "",
-            userAgent: "",
-          },
-          // Seed Provider #2 with 快泛API defaults so a fresh install ships with
-          // a pre-configured alternative relay (kuaifanio.cn / pureApi /
-          // chatCompletions). The user only needs to paste their API key and
-          // click "从上游获取" — the first model lands in the model list.
-          {
-            id: "kuaifan",
-            name: "快泛API",
-            model: "",
-            baseUrl: "https://kuaifanio.cn/v1",
-            upstreamBaseUrl: "https://kuaifanio.cn/v1",
-            apiKey: "",
-            protocol: "chatCompletions" as RelayProtocol,
-            relayMode: "pureApi" as RelayMode,
-            officialMixApiKey: false,
-            testModel: "",
-            configContents: "",
-            authContents: "",
-            useCommonConfig: true,
-            contextSelection: defaultContextSelection,
-            contextSelectionInitialized: true,
-            contextWindow: "",
-            autoCompactLimit: "",
-            modelList: "",
-            modelWindows: "",
-            userAgent: "",
-          },
-        ];
+  const baseProfiles = settings.relayProfiles?.length
+    ? settings.relayProfiles.map((profile) =>
+        normalizeRelayProfile(hydrateAggregateRelayProfile(profile, backendAggregates.get(profile.id)), defaultContextSelection),
+      )
+    : [
+        {
+          id: settings.activeRelayId || "default",
+          name: "默认中转",
+          model: "",
+          baseUrl: settings.relayBaseUrl || defaultSettings.relayBaseUrl,
+          upstreamBaseUrl: settings.relayBaseUrl || defaultSettings.relayBaseUrl,
+          apiKey: settings.relayApiKey || "",
+          protocol: "responses" as RelayProtocol,
+          relayMode: "official" as RelayMode,
+          officialMixApiKey: false,
+          testModel: "",
+          configContents: "",
+          authContents: "",
+          useCommonConfig: true,
+          contextSelection: defaultContextSelection,
+          contextSelectionInitialized: true,
+          contextWindow: "",
+          autoCompactLimit: "",
+          modelList: "",
+          modelWindows: "",
+          userAgent: "",
+        },
+      ];
+  // Seed Provider #2 with 快泛API defaults so a fresh install (and any
+  // pre-existing settings.json that pre-dates this seed) ships with a
+  // pre-configured alternative relay. Idempotent: users who already
+  // renamed / cloned this provider (matched by id OR name) are skipped.
+  const profiles = baseProfiles.some(
+    (profile) => profile.id === "kuaifan" || profile.name === "快泛API",
+  )
+    ? baseProfiles
+    : [
+        ...baseProfiles,
+        {
+          id: "kuaifan",
+          name: "快泛API",
+          model: "",
+          baseUrl: "https://kuaifanio.cn/v1",
+          upstreamBaseUrl: "https://kuaifanio.cn/v1",
+          apiKey: "",
+          protocol: "chatCompletions" as RelayProtocol,
+          relayMode: "pureApi" as RelayMode,
+          officialMixApiKey: false,
+          testModel: "",
+          configContents: "",
+          authContents: "",
+          useCommonConfig: true,
+          contextSelection: defaultContextSelection,
+          contextSelectionInitialized: true,
+          contextWindow: "",
+          autoCompactLimit: "",
+          modelList: "",
+          modelWindows: "",
+          userAgent: "",
+        },
+      ];
   const activeRelayId = profiles.some((profile) => profile.id === settings.activeRelayId)
     ? settings.activeRelayId
     : profiles[0]?.id || "default";
