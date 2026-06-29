@@ -89,10 +89,26 @@ jobs:
           lipo -info target/x86_64-apple-darwin/release/codex-plus-plus
           lipo -info target/aarch64-apple-darwin/release/codex-plus-plus
 
-      - name: Build universal .pkg installer (auto-installs both apps to /Applications)
+      - name: Build universal .dmg (primary, drag-and-drop install — bypasses .pkg Gatekeeper friction)
+        run: |
+          chmod +x scripts/installer/macos/package-dmg-universal.sh
+          bash scripts/installer/macos/package-dmg-universal.sh
+
+      - name: Build universal .pkg installer (alternative, one-click install via sudo installer)
         run: |
           chmod +x scripts/installer/macos/package-pkg-universal.sh
           bash scripts/installer/macos/package-pkg-universal.sh
+
+      - name: List installer artifacts
+        run: |
+          ls -lh dist/macos/*.dmg dist/macos/*.pkg 2>&1
+          PKG="$(ls dist/macos/CodexPlusPlus-*-macos-universal.pkg | head -1)"
+          DMG="$(ls dist/macos/CodexPlusPlus-*-macos-universal.dmg | head -1)"
+          echo "PKG=$PKG"
+          echo "PKG_SIZE=$(stat -f %z "$PKG")"
+          echo "DMG=$DMG"
+          echo "DMG_SIZE=$(stat -f %z "$DMG")"
+        id: pkg
 
       - name: List installer artifact
         run: |
@@ -185,11 +201,13 @@ jobs:
       - name: Cleanup expand dir
         run: rm -rf /tmp/codexplus-install-expand
 
-      - name: Upload installer artifact
+      - name: Upload installer artifact(s)
         uses: actions/upload-artifact@v4
         with:
-          name: codex-plus-plus-macos-installer
-          path: dist/macos/CodexPlusPlus-*-macos-universal.pkg
+          name: codex-plus-plus-macos-universal
+          path: |
+            dist/macos/CodexPlusPlus-*-macos-universal.dmg
+            dist/macos/CodexPlusPlus-*-macos-universal.pkg
           if-no-files-found: error
           retention-days: 14
 
@@ -205,61 +223,59 @@ jobs:
           draft: false
           prerelease: false
           body: |
-            ## Codex++ ${{ github.ref_name }} — macOS Universal Installer
+            ## Codex++ ${{ github.ref_name }} — macOS Universal (Intel + Apple Silicon)
 
-            **Single `.pkg` auto-installs BOTH `Codex++` and `Codex++ 管理工具` to `/Applications`.**
-            Runs natively on **Intel (x86_64)** and **Apple Silicon (arm64)** Macs
-            (lipo'd universal binaries).
+            **One download. Native on both architectures. Drag-and-drop install.**
 
-            | Asset | Description |
-            |---|---|
-            | `CodexPlusPlus-1.2.21-macos-universal.pkg` | One-click universal installer (Intel + Apple Silicon, auto-installs both Codex++ and Codex++ 管理工具 to /Applications) |
+            | Asset | Size | Recommendation |
+            |---|---|---|
+            | **`CodexPlusPlus-1.2.21-macos-universal.dmg`** | ~29 MB | **Preferred** — double-click → drag both `.app` into `/Applications` |
+            | `CodexPlusPlus-1.2.21-macos-universal.pkg` | ~26 MB | Auto-installer via `sudo installer -pkg ... -target /` |
 
-            ### Install (one-liner — recommended)
+            The `.dmg` is ad-hoc signed and **does not trip Gatekeeper** the way a `.pkg` does.
+            You can drag the apps straight from the mounted image; for first launch only,
+            right-click the app → **Open** → **Open** to whitelist (this persists).
+
+            ### Install — recommended (.dmg)
+            1. Download `CodexPlusPlus-1.2.21-macos-universal.dmg` below.
+            2. Double-click to mount the image → a Finder window pops up showing two apps
+               and an `Applications` symlink.
+            3. Drag **both** `Codex++` and `Codex++ 管理工具` into the `Applications` shortcut.
+            4. Launch `Codex++ 管理工具.app` from Launchpad.
+               - First time macOS Gatekeeper may ask; **right-click → Open → Open** once to remember.
+
+            ### Install — one-liner (.dmg, no Finder needed)
             ```bash
             curl -fL https://raw.githubusercontent.com/MiMo-ts/codex-/main/scripts/installer/macos/install.sh | bash
             ```
-            Downloads + removes quarantine (Gatekeeper unlock) + installs to `/Applications` via `sudo installer`. Will prompt for the admin password once.
 
-            ### Install (manual, GUI)
-            1. Download `CodexPlusPlus-1.2.21-macos-universal.pkg` below.
-            2. **If Gatekeeper blocks it** ("from an unidentified developer"), either:
-               - Right-click the `.pkg` in Finder → **Open** → **Open** in the dialog, or
-               - Run `xattr -cr /path/to/CodexPlusPlus-1.2.21-macos-universal.pkg` then double-click
-            3. macOS Installer pops up → continue → enter admin password.
-            4. Done. Both `Codex++` and `Codex++ 管理工具` will be in `/Applications`.
-
-            > The bundle is **ad-hoc signed** (no Apple Developer ID), which is why
-            > browsers add `com.apple.quarantine` and Gatekeeper complains. Removing
-            > the quarantine attribute is the official workaround until notarization is enabled.
-
-            ### CLI install (alternative)
+            ### Install — `.pkg` (auto, no drag)
             ```bash
-            sudo installer -pkg "CodexPlusPlus-1.2.21-macos-universal.pkg" -target /
+            curl -fLO "https://github.com/MiMo-ts/codex-/releases/download/v1.2.21-macos/CodexPlusPlus-1.2.21-macos-universal.pkg"
+            xattr -cr CodexPlusPlus-1.2.21-macos-universal.pkg
+            sudo installer -pkg CodexPlusPlus-1.2.21-macos-universal.pkg -target /
             ```
 
-            ### Gatekeeper (because .app bundles are **ad-hoc signed**, no Developer ID)
-            ```bash
-            xattr -dr com.apple.quarantine \
-              "/Applications/Codex++.app" \
-              "/Applications/Codex++ 管理工具.app"
-            ```
+            ### Architecture
+            - `lipo -info` on either executable should report: `x86_64 arm64`
+            - Single fat binary, no Rosetta needed on Apple Silicon.
 
-            ### Verify
-            ```bash
-            file "/Applications/Codex++ 管理工具.app/Contents/MacOS/CodexPlusPlusManager"
-            lipo -info "/Applications/Codex++ 管理工具.app/Contents/MacOS/CodexPlusPlusManager"
-            # should report: x86_64 arm64
-            ```
-          files: dist/macos/CodexPlusPlus-*-macos-universal.pkg
+            > Bundle is **ad-hoc signed** (no Apple Developer ID); a "from an unidentified
+            > developer" prompt on first launch is expected and one-time. Right-click → Open
+            > is the official workaround until notarization is added.
+          files: |
+            dist/macos/CodexPlusPlus-*-macos-universal.dmg
+            dist/macos/CodexPlusPlus-*-macos-universal.pkg
           fail_on_unmatched_files: true
 
       - name: Smoke summary
         run: |
-          echo "## macOS Universal Installer (.pkg) ready"
+          echo "## macOS Universal installers ready"
           echo ""
-          echo "- Single .pkg auto-installs both Codex++ and Codex++ 管理工具 to /Applications"
-          echo "- Runs natively on Intel (x86_64) and Apple Silicon (arm64)"
-          echo "- Built via lipo'd universal binaries + pkgbuild"
+          echo "- .dmg (drag-and-drop) and .pkg (auto-install) both produced"
+          echo "- Both run natively on Intel (x86_64) and Apple Silicon (arm64)"
+          echo "- Built via lipo'd universal binaries"
+          echo ""
+          ls -lh dist/macos/CodexPlusPlus-*-macos-universal.* 2>&1
           echo ""
           ls -lh dist/macos/CodexPlusPlus-*-macos-universal.pkg
