@@ -4192,10 +4192,11 @@ function RelayProfileEditor({
                     modelWindows: serializedRows.modelWindows,
                   });
                   if (models?.length) {
-                    // For the 快泛API preset: replace the model list with
-                    // just the first upstream model (per "配置 key → 一键
-                    // 写入首个模型" workflow). Other cards keep their
-                    // existing append-all behavior.
+                    // 快泛API preset still uses replace-semantics (set the
+                    // full upstream model list) so re-clicking fetch gives a
+                    // clean refresh without duplicates, but the listed models
+                    // are the full upstream response — not just models[0].
+                    // Other cards keep their existing append-all behavior.
                     const isKuaifanPreset =
                       profile.id === "kuaifan" ||
                       profile.name === "快泛API" ||
@@ -4203,7 +4204,9 @@ function RelayProfileEditor({
                         .replace(/\/+$/, "")
                         .toLowerCase() === "https://kuaifanio.cn/v1";
                     if (isKuaifanPreset) {
-                      setModelWindowRows([{ model: models[0], window: "" }]);
+                      setModelWindowRows(
+                        models.map((model) => ({ model, window: "" })),
+                      );
                     } else {
                       addModelWindowRows(
                         models.map((model) => ({ model, window: "" })),
